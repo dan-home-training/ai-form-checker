@@ -1907,28 +1907,42 @@ async function callGeminiVideo(file, muscle, exercise, poseData) {
     ・全フェーズを通してフォームが非常に安定している → +3点
     調整後の最終スコアは30〜95点の範囲に収めること。小数点は使わず整数で出力すること。`;
 
-  const genRes = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [
-          { file_data: { mime_type: mimeType, file_uri: fileUri } },
-          { text: prompt }
-        ]}],
-        generationConfig: {
-          temperature: 0.2,
-          maxOutputTokens: 8192,
-          responseMimeType: 'application/json'
-        }
-      })
+  const requestBody = JSON.stringify({
+    contents: [{ parts: [
+      { file_data: { mime_type: mimeType, file_uri: fileUri } },
+      { text: prompt }
+    ]}],
+    generationConfig: {
+      temperature: 0.2,
+      maxOutputTokens: 8192,
+      responseMimeType: 'application/json'
     }
-  );
-  if (!genRes.ok) {
-    const errData = await genRes.json().catch(() => ({}));
-    throw new Error(errData.error?.message || `HTTP ${genRes.status}`);
+  });
+
+  // レート制限時に自動リトライ（最大3回）
+  let genRes, errData;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    genRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: requestBody }
+    );
+    if (genRes.ok) break;
+    errData = await genRes.json().catch(() => ({}));
+    const isRateLimit = genRes.status === 429;
+    if (!isRateLimit || attempt === 3) {
+      throw new Error(errData.error?.message || `HTTP ${genRes.status}`);
+    }
+    // retryDelay: エラーメッセージから "retry in X.XXs" を抽出、なければ10秒
+    const retryMatch = (errData.error?.message || '').match(/retry in ([\d.]+)s/i);
+    const waitSec = retryMatch ? Math.ceil(parseFloat(retryMatch[1])) + 1 : 10;
+    const loadingEl = document.getElementById('loadingText');
+    for (let s = waitSec; s > 0; s--) {
+      if (loadingEl) loadingEl.textContent = `混雑中… ${s}秒後に自動リトライ (${attempt}/3)`;
+      await new Promise(r => setTimeout(r, 1000));
+    }
+    if (loadingEl) loadingEl.textContent = '再解析中...';
   }
+
   const genData = await genRes.json();
   const rawText = genData.candidates?.[0]?.content?.parts?.[0]?.text || '';
   if (!rawText) throw new Error('Geminiからの応答が空です');
