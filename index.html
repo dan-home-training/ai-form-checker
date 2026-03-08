@@ -2253,9 +2253,9 @@ function updateScreen3(data, isHistoricalView) {
 
   // ── ダンのフィードバック画像をスコアに応じてランダム表示 ──
   const danPools = {
-    high: ['FB画像/80点以上/4.png','FB画像/80点以上/6.png','FB画像/80点以上/7.png','FB画像/80点以上/9.png'],
-    mid:  ['FB画像/65点〜79点/2.png','FB画像/65点〜79点/8.png'],
-    low:  ['FB画像/64点未満/1.png','FB画像/64点未満/3.png','FB画像/64点未満/5.png']
+    high: ['FB画像/80点以上/4.png','FB画像/80点以上/6.png','FB画像/80点以上/9.png'],
+    mid:  ['FB画像/65点〜79点/1.png','FB画像/65点〜79点/8.png'],
+    low:  ['FB画像/64点未満/2.png','FB画像/64点未満/3.png','FB画像/64点未満/5.png']
   };
   const danPool = score >= 80 ? danPools.high : score >= 65 ? danPools.mid : danPools.low;
   const danPick = danPool[Math.floor(Math.random() * danPool.length)];
