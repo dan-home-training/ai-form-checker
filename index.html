@@ -1882,15 +1882,30 @@ async function callGeminiVideo(file, muscle, exercise, poseData) {
   - severityは "warn" か "bad"
   - 良好なポイントは不要。問題点のみ0〜3個。問題なければ空配列[]
 - 知識ベースの「よくある失敗と直し方」を参考に具体的なフィードバックを書くこと
-- 【採点の絶対ルール】scoreは動画から実際に観察した内容のみに基づいて決定する。
-  ・フォームにほぼ問題なし → 85〜95点
-  ・小さな改善点が1〜2個 → 72〜84点
-  ・複数の問題あり（3個以上） → 50〜71点
-  ・基本フォームが崩れている → 30〜49点
-  ・危険なフォームや映像が不明瞭 → 30点未満
-  観察した問題の数・深刻度・可動域・テンポを総合して採点すること。
-  「70点台」や「65〜70点」などの特定の狭い範囲に集中させてはいけない。
-  全体の採点分布が30〜95点の幅を使うよう意識すること`;
+- 【採点の絶対ルール】scoreは以下の手順を厳密に守り、機械的に決定する。
+
+  ステップ1: feedbackの各項目のstatusを数える
+    B = statusが"bad"の項目数（重大な問題）
+    W = statusが"warn"の項目数（要改善）
+
+  ステップ2: 下記テーブルから基本スコアを選ぶ（必ずこの値を使うこと）
+    B=0, W=0 → 92点
+    B=0, W=1 → 82点
+    B=0, W=2 → 75点
+    B=0, W=3以上 → 67点
+    B=1, W=0 → 65点
+    B=1, W=1 → 58点
+    B=1, W=2以上 → 50点
+    B=2, W=0 → 48点
+    B=2, W=1以上 → 40点
+    B=3以上 → 32点
+
+  ステップ3: 以下の条件に当てはまる場合のみ、基本スコアから加減算する（各条件は1回だけ適用）
+    ・可動域が著しく制限されている（明らかに半分以下）→ -4点
+    ・動作テンポが危険なほど速い → -3点
+    ・映像が不明瞭で正確な判断が困難 → -10点
+    ・全フェーズを通してフォームが非常に安定している → +3点
+    調整後の最終スコアは30〜95点の範囲に収めること。小数点は使わず整数で出力すること。`;
 
   const genRes = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
@@ -1903,7 +1918,7 @@ async function callGeminiVideo(file, muscle, exercise, poseData) {
           { text: prompt }
         ]}],
         generationConfig: {
-          temperature: 0.7,
+          temperature: 0.2,
           maxOutputTokens: 8192,
           responseMimeType: 'application/json'
         }
