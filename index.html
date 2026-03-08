@@ -1292,7 +1292,7 @@ const EXERCISES = {
 };
 
 // ─── State ───
-let GEMINI_API_KEY = 'AIzaSyAIrM-8lmZsqCGYxrNSCZScjeznvEeHuuQ';
+let GEMINI_API_KEY = localStorage.getItem('aiFC_geminiKey') || '';
 let currentMuscle = '胸';
 let currentExercise = 'ダンベルプレス';
 let currentEquipment = 'ダンベル';  // 'ダンベル' or '自重'
@@ -1698,6 +1698,7 @@ function saveApiKey() {
   const key = document.getElementById('apiKeyInput').value.trim();
   if (!key) return;
   GEMINI_API_KEY = key;
+  localStorage.setItem('aiFC_geminiKey', key);
   closeApiKeyModal();
   if (selectedFile) runGeminiAnalysis();
 }
