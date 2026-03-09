@@ -2357,11 +2357,12 @@ function updateScreen3(data, isHistoricalView) {
   document.getElementById('s3exName').textContent = currentExercise;
 
   // ── ダンのフィードバック画像をスコアに応じてランダム表示 ──
-  /* スクリーン3表示時にアバターエリアを即時表示 */
+  /* スクリーン3表示時にアバターエリアを即時表示 + Simli 初期化を確実に呼ぶ */
   const simliWrapS3   = document.getElementById('simliVideoWrap');
   const scoreSummary  = document.querySelector('.score-summary-block');
   if (simliWrapS3) simliWrapS3.style.display = 'block';
   if (scoreSummary) scoreSummary.style.paddingRight = '138px';
+  if (window._trySimliInit) window._trySimliInit(); /* ← 歴史的結果表示時もここで呼ぶ */
 
   const fbList = document.getElementById('s3fbList');
   fbList.innerHTML = '';
@@ -2940,10 +2941,14 @@ function roundRect(ctx, x, y, w, h, r) {
     ]).then(done, done);
   };
 
-  /* ページロード後に先行初期化 */
-  window.addEventListener('load', function() {
-    setTimeout(trySimliInit, 800);
-  });
+  /* ページロード後に先行初期化
+     スクリプトがページ下部にある場合 load イベントが既に完了している可能性があるため
+     readyState をチェックして即時実行 or イベント待機を切り替える */
+  if (document.readyState === 'complete') {
+    setTimeout(trySimliInit, 100);  /* 既にロード済みなら即時起動 */
+  } else {
+    window.addEventListener('load', function() { setTimeout(trySimliInit, 800); });
+  }
 }());
 </script>
 </body>
