@@ -2730,68 +2730,99 @@ function roundRect(ctx, x, y, w, h, r) {
 </script>
 
 <script>
-/* ─── Simli v3 + ElevenLabs リアルタイムアバター v11 ───
-   simli-client@3.0.1 / generateSimliSessionToken / 早期初期化 */
+/* ─── Simli v3 + ElevenLabs リアルタイムアバター v12 ───
+   修正: 全リトライ失敗後も scheduleRetry() で新トークン再接続
+         STUN サーバー追加で ICE 成功率向上
+         eleven_turbo_v2_5 + language_code:'ja' で日本語精度向上 */
 (function () {
   var EL_KEY   = 'sk_d459d1e8f11e1b80259c260ac71363aac6bae469eb399ed3';
   var EL_VOICE = 'g9kpivHUMvxu1YfIfhxO';
   var SIM_KEY  = '7g3q2d02s4hm72ulqns3u';
   var SIM_FACE = '9a6c68be-a746-4751-842d-106b5c281021';
-  var EL_MODEL = 'eleven_multilingual_v2';
+  var EL_MODEL = 'eleven_turbo_v2_5';
 
   var simliClient  = null;
   var simliReady   = false;
   var simliIniting = false;
+  var simliMod     = null;   /* モジュールをキャッシュ（再importしない） */
+  var retryTimer   = null;
 
-  /* ── Simli v3 バックグラウンド初期化 ── */
+  /* ── 一定時間後に再試行をスケジュール（重複防止） ── */
+  function scheduleRetry(ms) {
+    if (retryTimer) return;
+    retryTimer = setTimeout(function() { retryTimer = null; trySimliInit(); }, ms || 5000);
+  }
+
+  /* ── Simli v3 バックグラウンド初期化（失敗しても再試行し続ける） ── */
   function trySimliInit() {
-    if (simliIniting || simliReady) return;
+    if (simliReady || simliIniting) return;
     simliIniting = true;
-    console.log('[Simli] 初期化開始...');
-    import('https://esm.sh/simli-client@3.0.1')
-      .then(function(mod) {
-        var genToken = mod.generateSimliSessionToken;
-        var genIce   = mod.generateIceServers;
-        var SC       = mod.SimliClient;
-        return genToken({
-          apiKey: SIM_KEY,
-          config: { faceId: SIM_FACE, isJPG: false, syncAudio: true }
-        }).then(function(tokenObj) {
-          return genIce(SIM_KEY).then(function(iceServers) {
-            var videoEl = document.getElementById('simliVideo');
-            var audioEl = document.getElementById('simliAudio');
-            if (simliClient) {
-              try { simliClient.stop(); } catch(e) {}
-            }
-            simliClient = new SC(tokenObj.session_token, videoEl, audioEl, iceServers);
-            simliClient.on('connected', function() {
-              simliReady   = true;
-              simliIniting = false;
-              console.log('[Simli] ✓ WebRTC接続完了');
-            });
-            simliClient.on('disconnected', function() {
-              simliReady   = false;
-              simliIniting = false;
-              console.log('[Simli] 切断');
-            });
-            simliClient.on('failed', function(e) {
-              simliReady   = false;
-              simliIniting = false;
-              console.warn('[Simli] 接続失敗:', e);
-            });
-            /* start() はバックグラウンドで（最大10回リトライ） */
-            simliClient.start().catch(function(e) {
-              simliReady   = false;
-              simliIniting = false;
-              console.warn('[Simli] 全リトライ失敗:', e.message || e);
-            });
-          });
+    if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
+    console.log('[Simli v12] 初期化開始...');
+
+    var modP = simliMod
+      ? Promise.resolve(simliMod)
+      : import('https://esm.sh/simli-client@3.0.1').then(function(m) {
+          simliMod = m; return m;
         });
-      })
-      .catch(function(e) {
-        simliIniting = false;
-        console.warn('[Simli] 初期化エラー:', e.message);
+
+    modP.then(function(mod) {
+      var genToken = mod.generateSimliSessionToken;
+      var genIce   = mod.generateIceServers;
+      var SC       = mod.SimliClient;
+
+      /* トークンと ICE サーバーを並列取得（新トークン = 新セッション） */
+      return Promise.all([
+        genToken({ apiKey: SIM_KEY, config: { faceId: SIM_FACE, isJPG: false, syncAudio: true } }),
+        genIce(SIM_KEY)
+      ]).then(function(res) {
+        var tokenObj = res[0];
+        var simliIce = Array.isArray(res[1]) ? res[1] : [];
+
+        /* Google STUN サーバーを追加 → ICE 直接接続の成功率を向上 */
+        var iceServers = simliIce.concat([
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' }
+        ]);
+
+        var videoEl = document.getElementById('simliVideo');
+        var audioEl = document.getElementById('simliAudio');
+        if (simliClient) { try { simliClient.stop(); } catch(e) {} simliClient = null; }
+
+        simliClient = new SC(tokenObj.session_token, videoEl, audioEl, iceServers);
+
+        simliClient.on('connected', function() {
+          simliReady   = true;
+          simliIniting = false;
+          console.log('[Simli v12] ✓ WebRTC接続完了');
+        });
+        simliClient.on('disconnected', function() {
+          simliReady   = false;
+          simliIniting = false;
+          console.log('[Simli v12] 切断 → 5秒後に新トークンで再接続');
+          scheduleRetry(5000);   /* ← 切断時も再接続 */
+        });
+        simliClient.on('failed', function(e) {
+          simliReady   = false;
+          simliIniting = false;
+          console.warn('[Simli v12] ICE失敗 → 3秒後に再試行:', e);
+          scheduleRetry(3000);   /* ← ICE 失敗時も再試行 */
+        });
+
+        /* start() はバックグラウンドで（内部 10 回リトライ）
+           全リトライ失敗 → scheduleRetry() で新トークンから再試行 */
+        simliClient.start().catch(function(e) {
+          simliReady   = false;
+          simliIniting = false;
+          console.warn('[Simli v12] 全リトライ失敗 → 5秒後に新トークンで再試行:', e.message || e);
+          scheduleRetry(5000);   /* ← ここが v11 との最大の違い */
+        });
       });
+    }).catch(function(e) {
+      simliIniting = false;
+      console.warn('[Simli v12] 初期化エラー → 5秒後に再試行:', e.message);
+      scheduleRetry(5000);
+    });
   }
   window._trySimliInit = trySimliInit;
 
@@ -2803,6 +2834,7 @@ function roundRect(ctx, x, y, w, h, r) {
       body:    JSON.stringify({
         text:           text,
         model_id:       EL_MODEL,
+        language_code:  'ja',
         voice_settings: { stability: 0.45, similarity_boost: 0.92 }
       })
     }).then(function(r) {
@@ -2819,6 +2851,7 @@ function roundRect(ctx, x, y, w, h, r) {
           return new Promise(function(res) { src.onended = res; });
         });
       }
+      /* fallback: Audio要素 */
       var blob = new Blob([buf], { type: 'audio/mpeg' });
       var url  = URL.createObjectURL(blob);
       var a    = new Audio(url);
@@ -2839,6 +2872,7 @@ function roundRect(ctx, x, y, w, h, r) {
         body:    JSON.stringify({
           text:           text,
           model_id:       EL_MODEL,
+          language_code:  'ja',
           voice_settings: { stability: 0.45, similarity_boost: 0.92 }
         })
       }
@@ -2860,7 +2894,7 @@ function roundRect(ctx, x, y, w, h, r) {
 
   /* ── _simliSpeak: ボタンクリック時に呼ばれるメイン関数 ── */
   window._simliSpeak = function(text) {
-    /* ① AudioContextをユーザーgestureの中で同期作成（Autoplay Policy対策） */
+    /* AudioContextをユーザーgestureの中で同期作成（Autoplay Policy対策） */
     if (!window._audioCtx || window._audioCtx.state === 'closed') {
       try { window._audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {}
     }
@@ -2874,14 +2908,14 @@ function roundRect(ctx, x, y, w, h, r) {
       if (badge) setTimeout(function() { badge.style.display = 'none'; }, 1000);
     };
 
-    /* ② MP3再生（必ず音が出る） + Simli PCMストリーミング（接続時のみ）を並列実行 */
+    /* MP3再生（必ず音が出る） + Simli PCMストリーミング（接続時のみ）を並列実行 */
     return Promise.all([
       playMP3(text).catch(function(e) { console.warn('[MP3]', e.message); }),
       streamPCMToSimli(text)
     ]).then(done, done);
   };
 
-  /* ③ ページロード後すぐにSimliをバックグラウンド初期化（先行接続） */
+  /* ページロード後すぐにSimliをバックグラウンド初期化（先行接続） */
   window.addEventListener('load', function() {
     setTimeout(trySimliInit, 800);
   });
