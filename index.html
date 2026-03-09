@@ -2730,16 +2730,18 @@ function roundRect(ctx, x, y, w, h, r) {
 </script>
 
 <script>
-/* ─── Simli v3 + ElevenLabs リアルタイムアバター v12 ───
+/* ─── Simli v3 + ElevenLabs リアルタイムアバター v12b ───
    修正: 全リトライ失敗後も scheduleRetry() で新トークン再接続
          STUN サーバー追加で ICE 成功率向上
-         eleven_turbo_v2_5 + language_code:'ja' で日本語精度向上 */
+         MP3再生: eleven_v3（最高品質・表現力）
+         PCMストリーミング: eleven_turbo_v2_5（リアルタイム向き）*/
 (function () {
-  var EL_KEY   = 'sk_d459d1e8f11e1b80259c260ac71363aac6bae469eb399ed3';
-  var EL_VOICE = 'g9kpivHUMvxu1YfIfhxO';
-  var SIM_KEY  = '7g3q2d02s4hm72ulqns3u';
-  var SIM_FACE = '9a6c68be-a746-4751-842d-106b5c281021';
-  var EL_MODEL = 'eleven_turbo_v2_5';
+  var EL_KEY      = 'sk_d459d1e8f11e1b80259c260ac71363aac6bae469eb399ed3';
+  var EL_VOICE    = 'g9kpivHUMvxu1YfIfhxO';
+  var SIM_KEY     = '7g3q2d02s4hm72ulqns3u';
+  var SIM_FACE    = '9a6c68be-a746-4751-842d-106b5c281021';
+  var EL_MODEL    = 'eleven_v3';            /* MP3再生用（最高品質） */
+  var EL_RT_MODEL = 'eleven_turbo_v2_5';   /* PCMリアルタイム用 */
 
   var simliClient  = null;
   var simliReady   = false;
@@ -2871,7 +2873,7 @@ function roundRect(ctx, x, y, w, h, r) {
         headers: { 'xi-api-key': EL_KEY, 'Content-Type': 'application/json' },
         body:    JSON.stringify({
           text:           text,
-          model_id:       EL_MODEL,
+          model_id:       EL_RT_MODEL,
           language_code:  'ja',
           voice_settings: { stability: 0.45, similarity_boost: 0.92 }
         })
