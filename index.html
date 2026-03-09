@@ -2815,28 +2815,32 @@ function roundRect(ctx, x, y, w, h, r) {
 
         simliClient = new SC(tokenObj.session_token, videoEl, audioEl, iceServers);
 
-        simliClient.on('connected', function() {
+        /* SimliClient v3 の正しいイベント名:
+           connected → 'start'  (初フレーム到着で発火)
+           disconnected → 'stop'
+           failed → 'error'                            */
+        simliClient.on('start', function() {
           simliReady   = true;
           simliIniting = false;
-          setStatus('');  /* 接続完了でステータス消去 */
+          setStatus('');
           var el = document.getElementById('simliStatus');
           if (el) el.style.display = 'none';
           /* muted + play() で autoplay ブロックを確実に回避 */
           var v = document.getElementById('simliVideo');
           if (v) { v.muted = true; v.play().catch(function(){}); }
-          console.log('[Simli v13] ✓ WebRTC接続完了！アバター表示開始');
+          console.log('[Simli v3] ✓ アバター接続完了・リップシンク開始');
         });
-        simliClient.on('disconnected', function() {
+        simliClient.on('stop', function() {
           simliReady   = false;
           simliIniting = false;
           setStatus('切断 再接続中...');
           scheduleRetry(5000);
         });
-        simliClient.on('failed', function(e) {
+        simliClient.on('error', function(e) {
           simliReady   = false;
           simliIniting = false;
-          console.warn('[Simli v13] failed:', e);
-          setStatus('ICE失敗 再試行中...');
+          console.warn('[Simli v3] error:', e);
+          setStatus('エラー 再試行中...');
           scheduleRetry(3000);
         });
 
