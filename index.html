@@ -426,6 +426,25 @@ body {
   height: 100%; width: auto;
   display: none; pointer-events: none;
 }
+
+/* ── Simli リアルタイムアバター ── */
+.simli-video-wrap {
+  position: absolute; right: 0; top: 0; bottom: 0;
+  overflow: hidden; pointer-events: none;
+  width: 110px; display: none;
+}
+#simliVideo {
+  position: absolute; right: 0; bottom: 0;
+  height: 100%; width: auto; object-fit: cover;
+}
+#simliAudio { display: none; }
+.simli-badge {
+  position: absolute; top: 8px; right: 8px;
+  background: rgba(240,112,64,0.88);
+  color: #fff; font-size: 9px; font-weight: 700;
+  padding: 2px 7px; border-radius: 100px;
+  backdrop-filter: blur(8px); letter-spacing: 0.03em;
+}
 .s3-body {
   flex: 1; min-height: 0;
   overflow-y: scroll; -webkit-overflow-scrolling: touch;
@@ -966,6 +985,12 @@ body {
     <!-- Dan's feedback image (cropped container) -->
     <div class="dan-face-wrap" id="danFaceWrap" style="display:none;">
       <img class="dan-face-img" id="danFaceImg" src="" alt="ダン">
+    </div>
+    <!-- Simli リアルタイムアバター -->
+    <div class="simli-video-wrap" id="simliVideoWrap">
+      <video id="simliVideo" autoplay playsinline></video>
+      <audio id="simliAudio" autoplay></audio>
+      <div class="simli-badge" id="simliBadge" style="display:none;">▶ 話し中</div>
     </div>
   </div>
   <div class="s3-body">
@@ -2408,6 +2433,27 @@ function updateScreen3(data, isHistoricalView) {
     annotationCanvas.style.display = 'none';
     if (annotationList) annotationList.style.display = 'none';
   }
+
+  // ── Simli リアルタイムアバター起動（新規解析時のみ）──
+  if (!isHistoricalView) {
+    const simliWrap = document.getElementById('simliVideoWrap');
+    const danWrap   = document.getElementById('danFaceWrap');
+    if (simliWrap) simliWrap.style.display = 'block';
+    if (danWrap)   danWrap.style.display   = 'none';
+    // テキスト構築: グレード + サマリー + bad項目のみ
+    const bads = (data.feedback || []).filter(f => f.status === 'bad');
+    let speakText = (data.grade || '良好') + 'です。' + (data.summary || '') + '。';
+    if (bads.length > 0) {
+      speakText += '改善ポイントをお伝えします。';
+      bads.forEach(b => {
+        speakText += (b.phase ? b.phase + 'では、' : '') + b.message + '。';
+      });
+    }
+    if (window._simliSpeak) {
+      window._simliSpeak(speakText).catch(e => console.warn('[Simli]', e.message));
+    }
+    if (scoreSummary) scoreSummary.style.paddingRight = '110px';
+  }
 }
 
 // ─── Canvas Annotation Rendering ───
@@ -2637,6 +2683,93 @@ function roundRect(ctx, x, y, w, h, r) {
     }
   }
 })();
+</script>
+
+<script type="module">
+// ─── Simli + ElevenLabs リアルタイムアバター ───
+import { SimliClient } from 'https://esm.sh/simli-client@latest';
+
+const SIMLI_API_KEY    = '7g3q2d02s4hm72ulqns3u';
+const SIMLI_FACE_ID    = '9a6c68be-a746-4751-842d-106b5c281021';
+const EL_API_KEY       = 'sk_d459d1e8f11e1b80259c260ac71363aac6bae469eb399ed3';
+const EL_VOICE_ID      = 'g9kpivHUMvxu1YfIfhxO';
+
+let simliInst  = null;
+let simliReady = false;
+let simliInit  = false;
+
+async function doInitSimli() {
+  if (simliReady || simliInit) return;
+  simliInit = true;
+  try {
+    const videoEl = document.getElementById('simliVideo');
+    const audioEl = document.getElementById('simliAudio');
+    simliInst = new SimliClient();
+    simliInst.Initialize({
+      apiKey:           SIMLI_API_KEY,
+      faceID:           SIMLI_FACE_ID,
+      handleSilence:    true,
+      maxSessionLength: 180,
+      maxIdleTime:      60,
+      videoRef:         videoEl,
+      audioRef:         audioEl,
+      enableConsoleLogs: false
+    });
+    await simliInst.start();
+    simliReady = true;
+    console.log('[Simli] 接続完了');
+  } catch (e) {
+    console.warn('[Simli] 初期化エラー:', e.message);
+    simliInit = false;
+  }
+}
+
+async function speakDan(text) {
+  const badge = document.getElementById('simliBadge');
+  try {
+    if (!simliReady) await doInitSimli();
+    if (!simliReady) return; // 初期化失敗時はスキップ
+
+    if (badge) badge.style.display = 'block';
+
+    const res = await fetch(
+      `https://api.elevenlabs.io/v1/text-to-speech/${EL_VOICE_ID}/stream?output_format=pcm_16000`,
+      {
+        method: 'POST',
+        headers: {
+          'xi-api-key':   EL_API_KEY,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          text,
+          model_id: 'eleven_v3',
+          voice_settings: { stability: 0.45, similarity_boost: 0.92 }
+        })
+      }
+    );
+
+    if (!res.ok) throw new Error('ElevenLabs エラー: ' + res.status);
+
+    const reader = res.body.getReader();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value && simliInst) simliInst.sendAudioData(value);
+    }
+  } catch (e) {
+    console.warn('[Simli speakDan]', e.message);
+  } finally {
+    if (badge) setTimeout(() => { badge.style.display = 'none'; }, 800);
+  }
+}
+
+// グローバルに公開（通常スクリプトから呼び出し可）
+window._simliSpeak = speakDan;
+
+// ページロード時に接続を先行初期化（ラグ低減）
+window.addEventListener('load', () => {
+  setTimeout(doInitSimli, 2000); // 2秒後にバックグラウンド初期化
+});
 </script>
 </body>
 </html>
