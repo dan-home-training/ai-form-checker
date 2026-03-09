@@ -2771,8 +2771,7 @@ function roundRect(ctx, x, y, w, h, r) {
     simliIniting = true;
     retryCount++;
     if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
-    setStatus('初期化中...
-試行#' + retryCount);
+    setStatus('初期化中... 試行#' + retryCount);
 
     var modP = simliMod
       ? Promise.resolve(simliMod)
@@ -2785,8 +2784,7 @@ function roundRect(ctx, x, y, w, h, r) {
       var genIce   = mod.generateIceServers;
       var SC       = mod.SimliClient;
 
-      setStatus('トークン取得中...
-試行#' + retryCount);
+      setStatus('トークン取得中... 試行#' + retryCount);
       return Promise.all([
         genToken({ apiKey: SIM_KEY, config: { faceId: SIM_FACE, isJPG: false, syncAudio: true } }),
         genIce(SIM_KEY)
@@ -2796,8 +2794,7 @@ function roundRect(ctx, x, y, w, h, r) {
 
         /* ICE サーバーをコンソールに記録（デバッグ用） */
         console.log('[Simli v13] ICE servers:', JSON.stringify(simliIce));
-        setStatus('WebRTC接続中...
-試行#' + retryCount);
+        setStatus('WebRTC接続中... 試行#' + retryCount);
 
         /* Google STUN + 公開 TURN（信頼性の高い openrelay.metered.ca） */
         var iceServers = simliIce.concat([
@@ -2829,16 +2826,14 @@ function roundRect(ctx, x, y, w, h, r) {
         simliClient.on('disconnected', function() {
           simliReady   = false;
           simliIniting = false;
-          setStatus('切断
-再接続中...');
+          setStatus('切断 再接続中...');
           scheduleRetry(5000);
         });
         simliClient.on('failed', function(e) {
           simliReady   = false;
           simliIniting = false;
           console.warn('[Simli v13] failed:', e);
-          setStatus('ICE失敗
-再試行中...');
+          setStatus('ICE失敗 再試行中...');
           scheduleRetry(3000);
         });
 
@@ -2846,15 +2841,13 @@ function roundRect(ctx, x, y, w, h, r) {
           simliReady   = false;
           simliIniting = false;
           console.warn('[Simli v13] 全リトライ失敗:', e.message || e);
-          setStatus('タイムアウト
-再試行中...');
+          setStatus('タイムアウト 再試行中...');
           scheduleRetry(5000);   /* ← 新トークンで再試行 */
         });
       });
     }).catch(function(e) {
       simliIniting = false;
-      setStatus('エラー
-再試行中...');
+      setStatus('エラー 再試行中...');
       console.warn('[Simli v13] エラー:', e.message);
       scheduleRetry(5000);
     });
