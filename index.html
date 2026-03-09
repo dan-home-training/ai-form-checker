@@ -450,6 +450,14 @@ body {
   position: absolute; right: 0; top: 0; bottom: 0;
   overflow: hidden; pointer-events: none;
   width: 110px; display: none;
+  background: #1a1a2c;  /* 接続前も黒背景で存在感 */
+}
+#simliStatus {
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%,-50%);
+  font-size: 8px; color: rgba(255,255,255,0.45);
+  text-align: center; line-height: 1.5;
+  pointer-events: none; white-space: pre;
 }
 #simliVideo {
   position: absolute; right: 0; bottom: 0;
@@ -1013,6 +1021,7 @@ body {
     <div class="simli-video-wrap" id="simliVideoWrap">
       <video id="simliVideo" autoplay playsinline></video>
       <audio id="simliAudio" autoplay></audio>
+      <div id="simliStatus">接続中...</div>
       <div class="simli-badge" id="simliBadge" style="display:none;">▶ 話し中</div>
     </div>
   </div>
@@ -2730,37 +2739,76 @@ function roundRect(ctx, x, y, w, h, r) {
 </script>
 
 <script>
-/* ─── Simli v3 + ElevenLabs リアルタイムアバター v12b ───
-   修正: 全リトライ失敗後も scheduleRetry() で新トークン再接続
-         STUN サーバー追加で ICE 成功率向上
-         MP3再生: eleven_v3（最高品質・表現力）
-         PCMストリーミング: eleven_turbo_v2_5（リアルタイム向き）*/
+/* ─── Simli v3 + ElevenLabs リアルタイムアバター v13 ───
+   変更: eleven_v3 に統一
+         RTCPeerConnection パッチ: iceTransportPolicy='relay' で ICE TURN 強制
+         ICE 状態ログ + 画面ステータス表示
+         scheduleRetry() で永続リトライ */
 (function () {
-  var EL_KEY      = 'sk_d459d1e8f11e1b80259c260ac71363aac6bae469eb399ed3';
-  var EL_VOICE    = 'g9kpivHUMvxu1YfIfhxO';
-  var SIM_KEY     = '7g3q2d02s4hm72ulqns3u';
-  var SIM_FACE    = '9a6c68be-a746-4751-842d-106b5c281021';
-  var EL_MODEL    = 'eleven_v3';            /* MP3再生用（最高品質） */
-  var EL_RT_MODEL = 'eleven_turbo_v2_5';   /* PCMリアルタイム用 */
+  var EL_KEY   = 'sk_d459d1e8f11e1b80259c260ac71363aac6bae469eb399ed3';
+  var EL_VOICE = 'g9kpivHUMvxu1YfIfhxO';
+  var SIM_KEY  = '7g3q2d02s4hm72ulqns3u';
+  var SIM_FACE = '9a6c68be-a746-4751-842d-106b5c281021';
+  var EL_MODEL = 'eleven_v3';   /* MP3・PCM 両方 v3 */
 
   var simliClient  = null;
   var simliReady   = false;
   var simliIniting = false;
-  var simliMod     = null;   /* モジュールをキャッシュ（再importしない） */
+  var simliMod     = null;
   var retryTimer   = null;
+  var retryCount   = 0;
 
-  /* ── 一定時間後に再試行をスケジュール（重複防止） ── */
+  /* ── ステータス表示ヘルパー ── */
+  function setStatus(txt) {
+    var el = document.getElementById('simliStatus');
+    if (el) el.textContent = txt;
+    console.log('[Simli v13]', txt);
+  }
+
+  /* ── RTCPeerConnection パッチ: TURN 強制 + ICE ログ ──
+     ICE が 'relay' 専用になることで NAT 越えを TURN が担保する */
+  (function patchRTC() {
+    var Orig = window.RTCPeerConnection;
+    if (!Orig || Orig._simliPatched) return;
+    window.RTCPeerConnection = function(cfg, con) {
+      cfg = Object.assign({}, cfg || {});
+      /* 'all' から 'relay' に変えることで STUN 直接接続を諦め
+         TURN リレーだけで繋ごうとする → NAT ファイアウォール環境で有効 */
+      cfg.iceTransportPolicy = 'relay';
+      var pc = new Orig(cfg, con);
+      pc.addEventListener('iceconnectionstatechange', function() {
+        setStatus('ICE: ' + pc.iceConnectionState + '\n試行#' + retryCount);
+        if (pc.iceConnectionState === 'connected' ||
+            pc.iceConnectionState === 'completed') {
+          console.log('[Simli v13] ✓ ICE connected!');
+        }
+      });
+      pc.addEventListener('icegatheringstatechange', function() {
+        console.log('[ICE gather]', pc.iceGatheringState);
+      });
+      return pc;
+    };
+    window.RTCPeerConnection._simliPatched = true;
+    /* 静的メソッドをコピー */
+    Object.keys(Orig).forEach(function(k) {
+      window.RTCPeerConnection[k] = Orig[k];
+    });
+  }());
+
+  /* ── 再試行スケジューラ ── */
   function scheduleRetry(ms) {
     if (retryTimer) return;
     retryTimer = setTimeout(function() { retryTimer = null; trySimliInit(); }, ms || 5000);
   }
 
-  /* ── Simli v3 バックグラウンド初期化（失敗しても再試行し続ける） ── */
+  /* ── Simli v3 バックグラウンド初期化 ── */
   function trySimliInit() {
     if (simliReady || simliIniting) return;
     simliIniting = true;
+    retryCount++;
     if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
-    console.log('[Simli v12] 初期化開始...');
+    setStatus('初期化中...
+試行#' + retryCount);
 
     var modP = simliMod
       ? Promise.resolve(simliMod)
@@ -2773,7 +2821,8 @@ function roundRect(ctx, x, y, w, h, r) {
       var genIce   = mod.generateIceServers;
       var SC       = mod.SimliClient;
 
-      /* トークンと ICE サーバーを並列取得（新トークン = 新セッション） */
+      setStatus('トークン取得中...
+試行#' + retryCount);
       return Promise.all([
         genToken({ apiKey: SIM_KEY, config: { faceId: SIM_FACE, isJPG: false, syncAudio: true } }),
         genIce(SIM_KEY)
@@ -2781,7 +2830,12 @@ function roundRect(ctx, x, y, w, h, r) {
         var tokenObj = res[0];
         var simliIce = Array.isArray(res[1]) ? res[1] : [];
 
-        /* Google STUN サーバーを追加 → ICE 直接接続の成功率を向上 */
+        /* ICE サーバーをコンソールに記録（デバッグ用） */
+        console.log('[Simli v13] ICE servers:', JSON.stringify(simliIce));
+        setStatus('WebRTC接続中...
+試行#' + retryCount);
+
+        /* Google STUN を追加（relay モードでは使われないが念のため） */
         var iceServers = simliIce.concat([
           { urls: 'stun:stun.l.google.com:19302' },
           { urls: 'stun:stun1.l.google.com:19302' }
@@ -2796,39 +2850,47 @@ function roundRect(ctx, x, y, w, h, r) {
         simliClient.on('connected', function() {
           simliReady   = true;
           simliIniting = false;
-          console.log('[Simli v12] ✓ WebRTC接続完了');
+          setStatus('');  /* 接続完了でステータス消去 */
+          var el = document.getElementById('simliStatus');
+          if (el) el.style.display = 'none';
+          console.log('[Simli v13] ✓ WebRTC接続完了！アバター表示開始');
         });
         simliClient.on('disconnected', function() {
           simliReady   = false;
           simliIniting = false;
-          console.log('[Simli v12] 切断 → 5秒後に新トークンで再接続');
-          scheduleRetry(5000);   /* ← 切断時も再接続 */
+          setStatus('切断
+再接続中...');
+          scheduleRetry(5000);
         });
         simliClient.on('failed', function(e) {
           simliReady   = false;
           simliIniting = false;
-          console.warn('[Simli v12] ICE失敗 → 3秒後に再試行:', e);
-          scheduleRetry(3000);   /* ← ICE 失敗時も再試行 */
+          console.warn('[Simli v13] failed:', e);
+          setStatus('ICE失敗
+再試行中...');
+          scheduleRetry(3000);
         });
 
-        /* start() はバックグラウンドで（内部 10 回リトライ）
-           全リトライ失敗 → scheduleRetry() で新トークンから再試行 */
         simliClient.start().catch(function(e) {
           simliReady   = false;
           simliIniting = false;
-          console.warn('[Simli v12] 全リトライ失敗 → 5秒後に新トークンで再試行:', e.message || e);
-          scheduleRetry(5000);   /* ← ここが v11 との最大の違い */
+          console.warn('[Simli v13] 全リトライ失敗:', e.message || e);
+          setStatus('タイムアウト
+再試行中...');
+          scheduleRetry(5000);   /* ← 新トークンで再試行 */
         });
       });
     }).catch(function(e) {
       simliIniting = false;
-      console.warn('[Simli v12] 初期化エラー → 5秒後に再試行:', e.message);
+      setStatus('エラー
+再試行中...');
+      console.warn('[Simli v13] エラー:', e.message);
       scheduleRetry(5000);
     });
   }
   window._trySimliInit = trySimliInit;
 
-  /* ── ElevenLabs MP3再生（AudioContext経由でAutoplay Policy回避） ── */
+  /* ── ElevenLabs MP3 再生 ── */
   function playMP3(text) {
     return fetch('https://api.elevenlabs.io/v1/text-to-speech/' + EL_VOICE, {
       method:  'POST',
@@ -2845,15 +2907,12 @@ function roundRect(ctx, x, y, w, h, r) {
     }).then(function(buf) {
       var ctx = window._audioCtx;
       if (ctx && ctx.state !== 'closed') {
-        return ctx.decodeAudioData(buf).then(function(audioBuffer) {
+        return ctx.decodeAudioData(buf).then(function(ab) {
           var src = ctx.createBufferSource();
-          src.buffer = audioBuffer;
-          src.connect(ctx.destination);
-          src.start(0);
+          src.buffer = ab; src.connect(ctx.destination); src.start(0);
           return new Promise(function(res) { src.onended = res; });
         });
       }
-      /* fallback: Audio要素 */
       var blob = new Blob([buf], { type: 'audio/mpeg' });
       var url  = URL.createObjectURL(blob);
       var a    = new Audio(url);
@@ -2862,7 +2921,7 @@ function roundRect(ctx, x, y, w, h, r) {
     });
   }
 
-  /* ── Simli PCMストリーミング（リップシンク用、接続時のみ） ── */
+  /* ── Simli PCM ストリーミング（接続時のみ） ── */
   function streamPCMToSimli(text) {
     if (!simliReady || !simliClient) return Promise.resolve();
     return fetch(
@@ -2873,7 +2932,7 @@ function roundRect(ctx, x, y, w, h, r) {
         headers: { 'xi-api-key': EL_KEY, 'Content-Type': 'application/json' },
         body:    JSON.stringify({
           text:           text,
-          model_id:       EL_RT_MODEL,
+          model_id:       EL_MODEL,
           language_code:  'ja',
           voice_settings: { stability: 0.45, similarity_boost: 0.92 }
         })
@@ -2889,20 +2948,15 @@ function roundRect(ctx, x, y, w, h, r) {
         });
       }
       return pump();
-    }).catch(function(e) {
-      console.warn('[Simli PCM]', e.message);
-    });
+    }).catch(function(e) { console.warn('[Simli PCM]', e.message); });
   }
 
-  /* ── _simliSpeak: ボタンクリック時に呼ばれるメイン関数 ── */
+  /* ── ボタンクリック時のメイン処理 ── */
   window._simliSpeak = function(text) {
-    /* AudioContextをユーザーgestureの中で同期作成（Autoplay Policy対策） */
     if (!window._audioCtx || window._audioCtx.state === 'closed') {
       try { window._audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {}
     }
-    if (window._audioCtx && window._audioCtx.state === 'suspended') {
-      window._audioCtx.resume();
-    }
+    if (window._audioCtx && window._audioCtx.state === 'suspended') window._audioCtx.resume();
 
     var badge = document.getElementById('simliBadge');
     if (badge) badge.style.display = 'block';
@@ -2910,14 +2964,13 @@ function roundRect(ctx, x, y, w, h, r) {
       if (badge) setTimeout(function() { badge.style.display = 'none'; }, 1000);
     };
 
-    /* MP3再生（必ず音が出る） + Simli PCMストリーミング（接続時のみ）を並列実行 */
     return Promise.all([
       playMP3(text).catch(function(e) { console.warn('[MP3]', e.message); }),
       streamPCMToSimli(text)
     ]).then(done, done);
   };
 
-  /* ページロード後すぐにSimliをバックグラウンド初期化（先行接続） */
+  /* ページロード後に先行初期化 */
   window.addEventListener('load', function() {
     setTimeout(trySimliInit, 800);
   });
