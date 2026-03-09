@@ -706,7 +706,7 @@ body {
     <div class="s1-sub">あなたのフォームを家トレ専門コーチのダンが添削します！</div>
   </div>
   <div class="scroll">
-    <div class="section-label-sm" style="margin-bottom:12px;color:var(--text-2);font-size:12px;">鍛える部位を選んでください</div>
+    <div class="section-label-sm" style="margin-bottom:12px;">部位を選択</div>
     <div class="muscle-grid">
 
       <!-- 胸 -->
@@ -717,7 +717,6 @@ body {
             <div class="mc-name">胸</div>
             <div class="mc-count">15種目</div>
           </div>
-          <div class="mc-eq-label">器具を選ぶ</div>
           <div class="mc-eq-row">
             <div class="mc-eq-btn" onclick="goToEx('胸','ダンベル');event.stopPropagation()">ダンベル</div>
             <div class="mc-eq-btn" onclick="goToEx('胸','自重');event.stopPropagation()">自重</div>
@@ -733,7 +732,6 @@ body {
             <div class="mc-name">背中</div>
             <div class="mc-count">10種目</div>
           </div>
-          <div class="mc-eq-label">器具を選ぶ</div>
           <div class="mc-eq-row">
             <div class="mc-eq-btn" onclick="goToEx('背中','ダンベル');event.stopPropagation()">ダンベル</div>
             <div class="mc-eq-btn" onclick="goToEx('背中','自重');event.stopPropagation()">自重</div>
@@ -749,7 +747,6 @@ body {
             <div class="mc-name">脚</div>
             <div class="mc-count">12種目</div>
           </div>
-          <div class="mc-eq-label">器具を選ぶ</div>
           <div class="mc-eq-row">
             <div class="mc-eq-btn" onclick="goToEx('脚','ダンベル');event.stopPropagation()">ダンベル</div>
             <div class="mc-eq-btn" onclick="goToEx('脚','自重');event.stopPropagation()">自重</div>
@@ -765,7 +762,6 @@ body {
             <div class="mc-name">肩</div>
             <div class="mc-count">9種目</div>
           </div>
-          <div class="mc-eq-label">器具を選ぶ</div>
           <div class="mc-eq-row">
             <div class="mc-eq-btn" onclick="goToEx('肩','ダンベル');event.stopPropagation()">ダンベル</div>
             <div class="mc-eq-btn" onclick="goToEx('肩','自重');event.stopPropagation()">自重</div>
@@ -781,7 +777,6 @@ body {
             <div class="mc-name">腕</div>
             <div class="mc-count">10種目</div>
           </div>
-          <div class="mc-eq-label">器具を選ぶ</div>
           <div class="mc-eq-row">
             <div class="mc-eq-btn" onclick="goToEx('腕','ダンベル');event.stopPropagation()">ダンベル</div>
             <div class="mc-eq-btn" onclick="goToEx('腕','自重');event.stopPropagation()">自重</div>
@@ -797,7 +792,6 @@ body {
             <div class="mc-name">腹</div>
             <div class="mc-count">12種目</div>
           </div>
-          <div class="mc-eq-label">器具を選ぶ</div>
           <div class="mc-eq-row">
             <div class="mc-eq-btn" onclick="goToEx('腹','ダンベル');event.stopPropagation()">ダンベル</div>
             <div class="mc-eq-btn" onclick="goToEx('腹','自重');event.stopPropagation()">自重</div>
@@ -2354,33 +2348,15 @@ function updateScreen3(data, isHistoricalView) {
       { label: '右股関節',   val: a.rightHip,           memo: 'ヒンジ動作の確認' },
       { label: '左膝角度',   val: a.leftKnee,           memo: '膝の軸ぶれ確認' },
     ].filter(i => i.val !== undefined);
-    function evalAngle(label, val) {
-      if (val === undefined) return '';
-      if (label.includes('肘')) return (val >= 55 && val <= 160) ? 'good' : 'warn';
-      if (label.includes('肩')) return (val >= 25 && val <= 170) ? 'good' : 'warn';
-      if (label.includes('膝')) return (val >= 55 && val <= 175) ? 'good' : 'warn';
-      if (label.includes('股')) return (val >= 15 && val <= 165) ? 'good' : 'warn';
-      if (label.includes('体幹')) return (val >= 5 && val <= 85) ? 'good' : 'warn';
-      return '';
-    }
-    poseGrid.innerHTML = items.map(i => {
-      const ev = evalAngle(i.label, i.val);
-      const badge = ev === 'good'
-        ? `<span class="pose-badge" style="background:rgba(52,199,89,0.12);border-color:rgba(52,199,89,0.3);color:var(--success);">良好</span>`
-        : ev === 'warn'
-        ? `<span class="pose-badge" style="background:var(--warning-bg);border-color:rgba(255,149,0,0.3);color:var(--warning);">要確認</span>`
-        : '';
-      return `
-      <div class="pose-angle-item ${ev}">
+    poseGrid.innerHTML = items.map(i => `
+      <div class="pose-angle-item">
         <div class="pose-angle-label">${i.label}</div>
         <div class="pose-angle-row">
           <span class="pose-angle-val">${i.val}</span>
           <span class="pose-angle-unit">°</span>
-          ${badge}
         </div>
         <div class="pose-angle-ideal">${i.memo}</div>
-      </div>`;
-    }).join('');
+      </div>`).join('');
   } else {
     poseCard.style.display = 'none';
   }
