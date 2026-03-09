@@ -434,22 +434,13 @@ body {
 .score-sub { font-size: 10px; color: rgba(255,255,255,0.38); }
 
 /* ── Dan's feedback image (cropped container) ── */
-.dan-face-wrap {
-  position: absolute; right: 0; top: 0; bottom: 0;
-  overflow: hidden; pointer-events: none;
-  /* width はJSで動的セット */
-}
-.dan-face-img {
-  position: absolute; right: 0; bottom: 0;
-  height: 100%; width: auto;
-  display: none; pointer-events: none;
-}
+
 
 /* ── Simli リアルタイムアバター ── */
 .simli-video-wrap {
   position: absolute; right: 0; top: 0; bottom: 0;
   overflow: hidden; pointer-events: none;
-  width: 110px; display: none;
+  width: 130px; display: none;
   background: #1a1a2c;  /* 接続前も黒背景で存在感 */
 }
 #simliStatus {
@@ -460,8 +451,10 @@ body {
   pointer-events: none; white-space: pre;
 }
 #simliVideo {
-  position: absolute; right: 0; bottom: 0;
-  height: 100%; width: auto; object-fit: cover;
+  position: absolute; right: 0; top: 0;
+  width: 100%; height: 100%;
+  object-fit: cover;
+  object-position: top center;  /* アバターの顔が見えるよう上寄せ */
 }
 #simliAudio { display: none; }
 .simli-badge {
@@ -1013,10 +1006,7 @@ body {
         <div class="score-sub" id="s3improvements">2点の改善ポイントあり</div>
       </div>
     </div>
-    <!-- Dan's feedback image (cropped container) -->
-    <div class="dan-face-wrap" id="danFaceWrap" style="display:none;">
-      <img class="dan-face-img" id="danFaceImg" src="" alt="ダン">
-    </div>
+
     <!-- Simli リアルタイムアバター -->
     <div class="simli-video-wrap" id="simliVideoWrap">
       <video id="simliVideo" autoplay playsinline></video>
@@ -2325,11 +2315,7 @@ function onDanCommentClick() {
   } catch(e) {}
 
   const btn       = document.getElementById('danCommentBtn');
-  const simliWrap = document.getElementById('simliVideoWrap');
-  const danWrap   = document.getElementById('danFaceWrap');
-  if (btn)       btn.style.display       = 'none';
-  if (simliWrap) simliWrap.style.display = 'block';
-  if (danWrap)   danWrap.style.display   = 'none';
+  if (btn) btn.style.display = 'none';
   if (window._simliSpeak && window._danSpeakText) {
     window._simliSpeak(window._danSpeakText)
       .catch(function(e) { console.warn('[DanComment]', e.message); });
@@ -2371,33 +2357,11 @@ function updateScreen3(data, isHistoricalView) {
   document.getElementById('s3exName').textContent = currentExercise;
 
   // ── ダンのフィードバック画像をスコアに応じてランダム表示 ──
-  const danPools = {
-    high: ['FB画像/80点以上/4.png','FB画像/80点以上/6.png','FB画像/80点以上/9.png'],
-    mid:  ['FB画像/65点〜79点/1.png','FB画像/65点〜79点/8.png'],
-    low:  ['FB画像/64点未満/2.png','FB画像/64点未満/3.png','FB画像/64点未満/5.png']
-  };
-  const danPool = score >= 80 ? danPools.high : score >= 65 ? danPools.mid : danPools.low;
-  const danPick = danPool[Math.floor(Math.random() * danPool.length)];
-  const danImg  = document.getElementById('danFaceImg');
-  const danWrap = document.getElementById('danFaceWrap');
-  const scoreSummary = document.querySelector('.score-summary-block');
-  danImg.src = danPick;
-  danImg.style.display = 'block';
-  if (danWrap) danWrap.style.display = 'block';
-
-  // 画像ロード後に実レンダリング幅を測定してコンテナ幅・テキスト幅を動的セット
-  function adjustDanLayout() {
-    const renderedW = danImg.offsetWidth;
-    if (renderedW > 0) {
-      danWrap.style.width = renderedW + 'px';
-      if (scoreSummary) scoreSummary.style.paddingRight = renderedW + 'px';
-    }
-  }
-  if (danImg.complete && danImg.naturalWidth > 0) {
-    adjustDanLayout();
-  } else {
-    danImg.onload = adjustDanLayout;
-  }
+  /* スクリーン3表示時にアバターエリアを即時表示 */
+  const simliWrapS3   = document.getElementById('simliVideoWrap');
+  const scoreSummary  = document.querySelector('.score-summary-block');
+  if (simliWrapS3) simliWrapS3.style.display = 'block';
+  if (scoreSummary) scoreSummary.style.paddingRight = '138px';
 
   const fbList = document.getElementById('s3fbList');
   fbList.innerHTML = '';
@@ -2739,7 +2703,7 @@ function roundRect(ctx, x, y, w, h, r) {
 </script>
 
 <script>
-/* ─── Simli v3 + ElevenLabs リアルタイムアバター v13 ───
+/* ─── Simli v3 + ElevenLabs リアルタイムアバター v14 ───
    変更: eleven_v3 に統一
          RTCPeerConnection パッチ: iceTransportPolicy='relay' で ICE TURN 強制
          ICE 状態ログ + 画面ステータス表示
@@ -2772,9 +2736,8 @@ function roundRect(ctx, x, y, w, h, r) {
     if (!Orig || Orig._simliPatched) return;
     window.RTCPeerConnection = function(cfg, con) {
       cfg = Object.assign({}, cfg || {});
-      /* 'all' から 'relay' に変えることで STUN 直接接続を諦め
-         TURN リレーだけで繋ごうとする → NAT ファイアウォール環境で有効 */
-      cfg.iceTransportPolicy = 'relay';
+      /* 'all': 直接接続 → STUN → TURN の順に試みる（最も互換性が高い） */
+      cfg.iceTransportPolicy = 'all';
       var pc = new Orig(cfg, con);
       pc.addEventListener('iceconnectionstatechange', function() {
         setStatus('ICE: ' + pc.iceConnectionState + '\n試行#' + retryCount);
@@ -2835,10 +2798,17 @@ function roundRect(ctx, x, y, w, h, r) {
         setStatus('WebRTC接続中...
 試行#' + retryCount);
 
-        /* Google STUN を追加（relay モードでは使われないが念のため） */
+        /* Google STUN + 公開 TURN（信頼性の高い openrelay.metered.ca） */
         var iceServers = simliIce.concat([
           { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' }
+          { urls: 'stun:stun1.l.google.com:19302' },
+          /* 公開 TURN サーバー：ICE 直接接続が失敗する環境でも TURN リレーで繋ぐ */
+          { urls: 'turn:openrelay.metered.ca:80',
+            username: 'openrelayproject', credential: 'openrelayproject' },
+          { urls: 'turn:openrelay.metered.ca:443',
+            username: 'openrelayproject', credential: 'openrelayproject' },
+          { urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+            username: 'openrelayproject', credential: 'openrelayproject' }
         ]);
 
         var videoEl = document.getElementById('simliVideo');
