@@ -135,13 +135,13 @@ body {
   border: none;
   border-radius: 100px;
   padding: 8px 14px;
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 700;
   cursor: pointer;
   display: flex;
   align-items: center;
   gap: 4px;
-  min-height: 36px;
+  min-height: 32px;
   box-shadow: 0 2px 10px rgba(240,112,64,0.4);
   white-space: nowrap;
   letter-spacing: -0.1px;
@@ -1819,6 +1819,8 @@ async function callGeminiVideo(file, muscle, exercise, poseData) {
 
   // ── Step 1: アップロード開始（Resumable Upload）──
   setLoading('動画をアップロード中...', `${(file.size / 1024 / 1024).toFixed(1)} MB`);
+  /* Simliをアップロード中に早期バックグラウンド初期化（ICE確立に時間が必要） */
+  if (window._trySimliInit) window._trySimliInit();
 
   const startRes = await fetch(
     `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${GEMINI_API_KEY}`,
@@ -2727,54 +2729,73 @@ function roundRect(ctx, x, y, w, h, r) {
 })();
 </script>
 
-<script src="https://unpkg.com/@daily-co/daily-js"></script>
 <script>
-/* ─── Simli + ElevenLabs リアルタイムアバター v8 ───
-   修正: 動的import / eleven_multilingual_v2 / MP3フォールバック */
+/* ─── Simli v3 + ElevenLabs リアルタイムアバター v11 ───
+   simli-client@3.0.1 / generateSimliSessionToken / 早期初期化 */
 (function () {
-  var EL_KEY    = 'sk_d459d1e8f11e1b80259c260ac71363aac6bae469eb399ed3';
-  var EL_VOICE  = 'g9kpivHUMvxu1YfIfhxO';
-  var SIM_KEY   = '7g3q2d02s4hm72ulqns3u';
-  var SIM_FACE  = '9a6c68be-a746-4751-842d-106b5c281021';
-  var EL_MODEL  = 'eleven_multilingual_v2';
+  var EL_KEY   = 'sk_d459d1e8f11e1b80259c260ac71363aac6bae469eb399ed3';
+  var EL_VOICE = 'g9kpivHUMvxu1YfIfhxO';
+  var SIM_KEY  = '7g3q2d02s4hm72ulqns3u';
+  var SIM_FACE = '9a6c68be-a746-4751-842d-106b5c281021';
+  var EL_MODEL = 'eleven_multilingual_v2';
 
-  var simli = null;
-  var ready = false;
-  var initializing = false;
+  var simliClient  = null;
+  var simliReady   = false;
+  var simliIniting = false;
 
-  /* Simli SDK + WebRTC を初期化（失敗してもMP3で動く） */
-  function initSimli() {
-    if (ready || initializing) return Promise.resolve();
-    initializing = true;
-    return import('https://esm.sh/simli-client@latest')
-      .then(function (mod) {
-        var SC = mod.SimliClient || mod.default;
-        if (!SC) throw new Error('SimliClient not exported');
-        simli = new SC();
-        simli.Initialize({
-          apiKey:            SIM_KEY,
-          faceID:            SIM_FACE,
-          handleSilence:     true,
-          maxSessionLength:  180,
-          maxIdleTime:       60,
-          videoRef:          document.getElementById('simliVideo'),
-          audioRef:          document.getElementById('simliAudio'),
-          enableConsoleLogs: false
+  /* ── Simli v3 バックグラウンド初期化 ── */
+  function trySimliInit() {
+    if (simliIniting || simliReady) return;
+    simliIniting = true;
+    console.log('[Simli] 初期化開始...');
+    import('https://esm.sh/simli-client@3.0.1')
+      .then(function(mod) {
+        var genToken = mod.generateSimliSessionToken;
+        var genIce   = mod.generateIceServers;
+        var SC       = mod.SimliClient;
+        return genToken({
+          apiKey: SIM_KEY,
+          config: { faceId: SIM_FACE, isJPG: false, syncAudio: true }
+        }).then(function(tokenObj) {
+          return genIce(SIM_KEY).then(function(iceServers) {
+            var videoEl = document.getElementById('simliVideo');
+            var audioEl = document.getElementById('simliAudio');
+            if (simliClient) {
+              try { simliClient.stop(); } catch(e) {}
+            }
+            simliClient = new SC(tokenObj.session_token, videoEl, audioEl, iceServers);
+            simliClient.on('connected', function() {
+              simliReady   = true;
+              simliIniting = false;
+              console.log('[Simli] ✓ WebRTC接続完了');
+            });
+            simliClient.on('disconnected', function() {
+              simliReady   = false;
+              simliIniting = false;
+              console.log('[Simli] 切断');
+            });
+            simliClient.on('failed', function(e) {
+              simliReady   = false;
+              simliIniting = false;
+              console.warn('[Simli] 接続失敗:', e);
+            });
+            /* start() はバックグラウンドで（最大10回リトライ） */
+            simliClient.start().catch(function(e) {
+              simliReady   = false;
+              simliIniting = false;
+              console.warn('[Simli] 全リトライ失敗:', e.message || e);
+            });
+          });
         });
-        return simli.start();
       })
-      .then(function () {
-        ready = true;
-        console.log('[Simli] WebRTC接続完了');
-      })
-      .catch(function (e) {
-        console.warn('[Simli] 初期化失敗（MP3フォールバック使用）:', e.message);
-        initializing = false;
+      .catch(function(e) {
+        simliIniting = false;
+        console.warn('[Simli] 初期化エラー:', e.message);
       });
   }
+  window._trySimliInit = trySimliInit;
 
-  /* ElevenLabs 音声再生 — AudioContext 経由（Autoplay Policy 回避）
-     window._audioCtx はボタンクリック時に同期生成済みのはず */
+  /* ── ElevenLabs MP3再生（AudioContext経由でAutoplay Policy回避） ── */
   function playMP3(text) {
     return fetch('https://api.elevenlabs.io/v1/text-to-speech/' + EL_VOICE, {
       method:  'POST',
@@ -2784,91 +2805,85 @@ function roundRect(ctx, x, y, w, h, r) {
         model_id:       EL_MODEL,
         voice_settings: { stability: 0.45, similarity_boost: 0.92 }
       })
-    }).then(function (r) {
+    }).then(function(r) {
       if (!r.ok) throw new Error('EL HTTP ' + r.status);
       return r.arrayBuffer();
-    }).then(function (arrayBuf) {
+    }).then(function(buf) {
       var ctx = window._audioCtx;
       if (ctx && ctx.state !== 'closed') {
-        /* AudioContext 経由で再生（Autoplay Policy フリー） */
-        return ctx.decodeAudioData(arrayBuf).then(function (audioBuffer) {
-          var source = ctx.createBufferSource();
-          source.buffer = audioBuffer;
-          source.connect(ctx.destination);
-          source.start(0);
-          return new Promise(function (resolve) { source.onended = resolve; });
+        return ctx.decodeAudioData(buf).then(function(audioBuffer) {
+          var src = ctx.createBufferSource();
+          src.buffer = audioBuffer;
+          src.connect(ctx.destination);
+          src.start(0);
+          return new Promise(function(res) { src.onended = res; });
         });
-      } else {
-        /* フォールバック: Blob URL + Audio要素（ユーザー操作直後のみ成功） */
-        var blob = new Blob([arrayBuf], { type: 'audio/mpeg' });
-        var url  = URL.createObjectURL(blob);
-        var a    = new Audio(url);
-        a.onended = function () { URL.revokeObjectURL(url); };
-        return a.play();
       }
+      var blob = new Blob([buf], { type: 'audio/mpeg' });
+      var url  = URL.createObjectURL(blob);
+      var a    = new Audio(url);
+      a.onended = function() { URL.revokeObjectURL(url); };
+      return a.play();
     });
   }
 
-  /* Simli PCMストリーミング → 失敗時MP3フォールバック */
-  window._simliSpeak = function (text) {
-    /* AudioContext をユーザージェスチャー内で同期作成（Autoplay Policy 回避） */
+  /* ── Simli PCMストリーミング（リップシンク用、接続時のみ） ── */
+  function streamPCMToSimli(text) {
+    if (!simliReady || !simliClient) return Promise.resolve();
+    return fetch(
+      'https://api.elevenlabs.io/v1/text-to-speech/' + EL_VOICE +
+      '/stream?output_format=pcm_16000',
+      {
+        method:  'POST',
+        headers: { 'xi-api-key': EL_KEY, 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          text:           text,
+          model_id:       EL_MODEL,
+          voice_settings: { stability: 0.45, similarity_boost: 0.92 }
+        })
+      }
+    ).then(function(r) {
+      if (!r.ok) throw new Error('EL PCM ' + r.status);
+      var reader = r.body.getReader();
+      function pump() {
+        return reader.read().then(function(chunk) {
+          if (chunk.done) return;
+          if (simliClient && simliReady) simliClient.sendAudioData(chunk.value);
+          return pump();
+        });
+      }
+      return pump();
+    }).catch(function(e) {
+      console.warn('[Simli PCM]', e.message);
+    });
+  }
+
+  /* ── _simliSpeak: ボタンクリック時に呼ばれるメイン関数 ── */
+  window._simliSpeak = function(text) {
+    /* ① AudioContextをユーザーgestureの中で同期作成（Autoplay Policy対策） */
     if (!window._audioCtx || window._audioCtx.state === 'closed') {
       try { window._audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {}
     }
     if (window._audioCtx && window._audioCtx.state === 'suspended') {
       window._audioCtx.resume();
     }
+
     var badge = document.getElementById('simliBadge');
     if (badge) badge.style.display = 'block';
-
-    var done = function () {
-      if (badge) setTimeout(function () { badge.style.display = 'none'; }, 1000);
+    var done = function() {
+      if (badge) setTimeout(function() { badge.style.display = 'none'; }, 1000);
     };
 
-    return initSimli().then(function () {
-      if (ready && simli) {
-        /* Simli経由：PCM16kHzストリーミング */
-        return fetch(
-          'https://api.elevenlabs.io/v1/text-to-speech/' + EL_VOICE +
-          '/stream?output_format=pcm_16000',
-          {
-            method:  'POST',
-            headers: { 'xi-api-key': EL_KEY, 'Content-Type': 'application/json' },
-            body:    JSON.stringify({
-              text:           text,
-              model_id:       EL_MODEL,
-              voice_settings: { stability: 0.45, similarity_boost: 0.92 }
-            })
-          }
-        ).then(function (r) {
-          if (!r.ok) throw new Error('EL ' + r.status);
-          var reader = r.body.getReader();
-          function pump() {
-            return reader.read().then(function (chunk) {
-              if (chunk.done) return;
-              if (chunk.value && simli) simli.sendAudioData(chunk.value);
-              return pump();
-            });
-          }
-          return pump();
-        }).catch(function (e) {
-          console.warn('[Simli PCM失敗] MP3フォールバック:', e.message);
-          return playMP3(text);
-        });
-      } else {
-        /* SimliなしでMP3再生 */
-        console.log('[_simliSpeak] MP3モードで再生');
-        return playMP3(text);
-      }
-    }).catch(function (e) {
-      console.warn('[_simliSpeak]', e.message);
-      return playMP3(text).catch(function () {});
-    }).then(done, done);
+    /* ② MP3再生（必ず音が出る） + Simli PCMストリーミング（接続時のみ）を並列実行 */
+    return Promise.all([
+      playMP3(text).catch(function(e) { console.warn('[MP3]', e.message); }),
+      streamPCMToSimli(text)
+    ]).then(done, done);
   };
 
-  /* ページロード後2秒でSimliをバックグラウンド初期化（ラグ低減） */
-  window.addEventListener('load', function () {
-    setTimeout(initSimli, 2000);
+  /* ③ ページロード後すぐにSimliをバックグラウンド初期化（先行接続） */
+  window.addEventListener('load', function() {
+    setTimeout(trySimliInit, 800);
   });
 }());
 </script>
