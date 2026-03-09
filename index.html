@@ -129,6 +129,24 @@ body {
   padding: 10px 0; min-height: 44px;
 }
 .back-btn:active { opacity: 0.5; }
+.dan-comment-btn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 100px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 36px;
+  box-shadow: 0 2px 10px rgba(240,112,64,0.4);
+  white-space: nowrap;
+  letter-spacing: -0.1px;
+}
+.dan-comment-btn:active { opacity: 0.75; }
 .cta-btn {
   background: var(--accent); color: #fff;
   font-size: 15px; font-weight: 700;
@@ -941,10 +959,15 @@ body {
       <span class="sb-time">9:41</span>
       <div class="sb-icons" id="si3"></div>
     </div>
-    <button class="back-btn" id="s3backBtn" onclick="goBack()">
-      <svg width="8" height="14" viewBox="0 0 8 14" fill="none"><path d="M7 1L1 7l6 6" stroke="rgba(255,255,255,0.5)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      <span id="s3backLabel">種目を選び直す</span>
-    </button>
+    <div style="display:flex;align-items:center;justify-content:space-between;width:100%;padding-right:4px;">
+      <button class="back-btn" id="s3backBtn" onclick="goBack()">
+        <svg width="8" height="14" viewBox="0 0 8 14" fill="none"><path d="M7 1L1 7l6 6" stroke="rgba(255,255,255,0.5)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span id="s3backLabel">種目を選び直す</span>
+      </button>
+      <button class="dan-comment-btn" id="danCommentBtn" onclick="onDanCommentClick()" style="display:none;">
+        🎙&nbsp;ダンからのコメント
+      </button>
+    </div>
     <div class="s3-hero-content">
       <div class="ex-badge">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.75)" stroke-width="1.75" stroke-linecap="round">
@@ -2280,6 +2303,20 @@ function viewHistoryResult(id) {
 }
 
 // ─── Update Screen 3 ───
+// ─── ダンからのコメントボタン: クリック時にSimli+音声を起動 ───
+function onDanCommentClick() {
+  const btn       = document.getElementById('danCommentBtn');
+  const simliWrap = document.getElementById('simliVideoWrap');
+  const danWrap   = document.getElementById('danFaceWrap');
+  if (btn)       btn.style.display       = 'none';
+  if (simliWrap) simliWrap.style.display = 'block';
+  if (danWrap)   danWrap.style.display   = 'none';
+  if (window._simliSpeak && window._danSpeakText) {
+    window._simliSpeak(window._danSpeakText)
+      .catch(function(e) { console.warn('[DanComment]', e.message); });
+  }
+}
+
 function updateScreen3(data, isHistoricalView) {
   // 新規解析のみ保存（履歴閲覧時は保存しない）
   if (!isHistoricalView) saveResult(data);
@@ -2434,12 +2471,9 @@ function updateScreen3(data, isHistoricalView) {
     if (annotationList) annotationList.style.display = 'none';
   }
 
-  // ── Simli リアルタイムアバター起動（新規解析時のみ）──
+  // ── ダンからのコメントボタン制御（新規解析時のみ表示）──
+  const danCommentBtn = document.getElementById('danCommentBtn');
   if (!isHistoricalView) {
-    const simliWrap = document.getElementById('simliVideoWrap');
-    const danWrap   = document.getElementById('danFaceWrap');
-    if (simliWrap) simliWrap.style.display = 'block';
-    if (danWrap)   danWrap.style.display   = 'none';
     // テキスト構築: グレード + サマリー + bad項目のみ
     const bads = (data.feedback || []).filter(f => f.status === 'bad');
     let speakText = (data.grade || '良好') + 'です。' + (data.summary || '') + '。';
@@ -2449,10 +2483,10 @@ function updateScreen3(data, isHistoricalView) {
         speakText += (b.phase ? b.phase + 'では、' : '') + b.message + '。';
       });
     }
-    if (window._simliSpeak) {
-      window._simliSpeak(speakText).catch(e => console.warn('[Simli]', e.message));
-    }
-    if (scoreSummary) scoreSummary.style.paddingRight = '110px';
+    window._danSpeakText = speakText;
+    if (danCommentBtn) danCommentBtn.style.display = 'flex';
+  } else {
+    if (danCommentBtn) danCommentBtn.style.display = 'none';
   }
 }
 
