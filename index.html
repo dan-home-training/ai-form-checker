@@ -141,7 +141,7 @@ body {
 /* ════════════════════════════
    SCREEN 1 — 部位選択
 ════════════════════════════ */
-.s1-header { padding: 14px 20px 14px; }
+.s1-header { padding: 14px 20px 14px; background: linear-gradient(180deg, rgba(240,112,64,0.07) 0%, transparent 100%); border-bottom: 0.5px solid rgba(240,112,64,0.1); margin-bottom: 4px; }
 .s1-title  { font-size: 24px; font-weight: 800; color: var(--text-1); letter-spacing: -0.7px; margin-bottom: 5px; }
 .s1-sub    { font-size: 12px; color: var(--text-2); font-weight: 500; line-height: 1.45; }
 .muscle-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 0 16px; }
@@ -181,6 +181,7 @@ body {
   backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
 }
 .mc-eq-btn:active { opacity: 0.65; }
+.mc-eq-label { font-size: 9px; color: rgba(255,255,255,0.6); font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; margin-bottom: 5px; }
 
 /* ── API Key Modal ── */
 .modal-overlay {
@@ -268,6 +269,11 @@ body {
   text-align: center; padding-top: 2px; cursor: pointer;
 }
 .upload-card.has-img .upload-change { display: block; }
+.file-next-hint {
+  display: none; font-size: 12px; font-weight: 600; color: var(--accent);
+  text-align: center; padding: 4px 0 0; letter-spacing: -0.1px;
+}
+.upload-card.has-img .file-next-hint { display: block; }
 
 /* ── 解析ボタン（カード外・常にスクロール可能）── */
 .analyze-btn-outer {
@@ -333,9 +339,9 @@ body {
 .guide-card { padding: 14px 16px; overflow: visible; }
 .guide-hdr {
   display: flex; align-items: center; gap: 6px;
-  font-size: 11px; font-weight: 600; color: var(--text-3);
+  font-size: 11px; font-weight: 700; color: var(--accent);
   letter-spacing: 0.08em; text-transform: uppercase;
-  padding-bottom: 11px; border-bottom: 0.5px solid var(--sep); margin-bottom: 13px;
+  padding-bottom: 11px; border-bottom: 0.5px solid rgba(240,112,64,0.15); margin-bottom: 13px;
 }
 .guide-body { display: flex; gap: 14px; align-items: flex-start; }
 .guide-diag {
@@ -456,7 +462,7 @@ body {
 .fb-item.good .fb-dot { background: var(--success); }
 .fb-item.warn .fb-dot { background: var(--warning); }
 .fb-item.bad  .fb-dot { background: var(--danger); }
-.fb-phase { font-size: 10px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; margin-bottom: 3px; }
+.fb-phase { font-size: 11px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; margin-bottom: 4px; }
 .fb-item.good .fb-phase { color: var(--success); }
 .fb-item.warn .fb-phase { color: var(--warning); }
 .fb-item.bad  .fb-phase { color: var(--danger); }
@@ -700,7 +706,7 @@ body {
     <div class="s1-sub">あなたのフォームを家トレ専門コーチのダンが添削します！</div>
   </div>
   <div class="scroll">
-    <div class="section-label-sm" style="margin-bottom:12px;">部位を選択</div>
+    <div class="section-label-sm" style="margin-bottom:12px;color:var(--text-2);font-size:12px;">鍛える部位を選んでください</div>
     <div class="muscle-grid">
 
       <!-- 胸 -->
@@ -711,6 +717,7 @@ body {
             <div class="mc-name">胸</div>
             <div class="mc-count">15種目</div>
           </div>
+          <div class="mc-eq-label">器具を選ぶ</div>
           <div class="mc-eq-row">
             <div class="mc-eq-btn" onclick="goToEx('胸','ダンベル');event.stopPropagation()">ダンベル</div>
             <div class="mc-eq-btn" onclick="goToEx('胸','自重');event.stopPropagation()">自重</div>
@@ -726,6 +733,7 @@ body {
             <div class="mc-name">背中</div>
             <div class="mc-count">10種目</div>
           </div>
+          <div class="mc-eq-label">器具を選ぶ</div>
           <div class="mc-eq-row">
             <div class="mc-eq-btn" onclick="goToEx('背中','ダンベル');event.stopPropagation()">ダンベル</div>
             <div class="mc-eq-btn" onclick="goToEx('背中','自重');event.stopPropagation()">自重</div>
@@ -741,6 +749,7 @@ body {
             <div class="mc-name">脚</div>
             <div class="mc-count">12種目</div>
           </div>
+          <div class="mc-eq-label">器具を選ぶ</div>
           <div class="mc-eq-row">
             <div class="mc-eq-btn" onclick="goToEx('脚','ダンベル');event.stopPropagation()">ダンベル</div>
             <div class="mc-eq-btn" onclick="goToEx('脚','自重');event.stopPropagation()">自重</div>
@@ -756,6 +765,7 @@ body {
             <div class="mc-name">肩</div>
             <div class="mc-count">9種目</div>
           </div>
+          <div class="mc-eq-label">器具を選ぶ</div>
           <div class="mc-eq-row">
             <div class="mc-eq-btn" onclick="goToEx('肩','ダンベル');event.stopPropagation()">ダンベル</div>
             <div class="mc-eq-btn" onclick="goToEx('肩','自重');event.stopPropagation()">自重</div>
@@ -771,6 +781,7 @@ body {
             <div class="mc-name">腕</div>
             <div class="mc-count">10種目</div>
           </div>
+          <div class="mc-eq-label">器具を選ぶ</div>
           <div class="mc-eq-row">
             <div class="mc-eq-btn" onclick="goToEx('腕','ダンベル');event.stopPropagation()">ダンベル</div>
             <div class="mc-eq-btn" onclick="goToEx('腕','自重');event.stopPropagation()">自重</div>
@@ -786,6 +797,7 @@ body {
             <div class="mc-name">腹</div>
             <div class="mc-count">12種目</div>
           </div>
+          <div class="mc-eq-label">器具を選ぶ</div>
           <div class="mc-eq-row">
             <div class="mc-eq-btn" onclick="goToEx('腹','ダンベル');event.stopPropagation()">ダンベル</div>
             <div class="mc-eq-btn" onclick="goToEx('腹','自重');event.stopPropagation()">自重</div>
@@ -895,6 +907,7 @@ body {
         </div>
         <div class="file-selected-name" id="fileSelectedName">動画ファイル</div>
         <div class="file-selected-size" id="fileSelectedSize"></div>
+        <div class="file-next-hint">↓ 下の「解析ボタン」を押してください</div>
       </div>
       <div class="upload-change" onclick="event.stopPropagation(); openFileInput()">動画を選び直す</div>
     </div>
@@ -946,7 +959,7 @@ body {
         </div>
         <div class="score-meta">
           <div class="grade-chip" id="s3gradeChip">
-            <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="#4CD964" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <svg id="s3gradeIcon" width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
             <span id="s3grade">良好</span>
           </div>
         </div>
@@ -1037,7 +1050,7 @@ body {
     <div class="sb-icons" id="si5"></div>
   </div>
   <div class="page-header">
-    <span class="page-title">解析種目</span>
+    <span class="page-title">種目履歴</span>
     <div style="width:34px;"></div>
   </div>
   <div class="s5-body" id="s5Body">
@@ -1058,18 +1071,18 @@ body {
   </div>
   <div class="tab-item" id="tab-history" onclick="showTab('history')">
     <svg width="23" height="23" viewBox="0 0 24 24" fill="none">
-      <line x1="18" y1="20" x2="18" y2="10" stroke="#C7C7CC" stroke-width="1.75" stroke-linecap="round"/>
-      <line x1="12" y1="20" x2="12" y2="4"  stroke="#C7C7CC" stroke-width="1.75" stroke-linecap="round"/>
-      <line x1="6"  y1="20" x2="6"  y2="14" stroke="#C7C7CC" stroke-width="1.75" stroke-linecap="round"/>
+      <line x1="18" y1="20" x2="18" y2="10" stroke="#C7C7CC" stroke-width="2.2" stroke-linecap="round"/>
+      <line x1="12" y1="20" x2="12" y2="4"  stroke="#C7C7CC" stroke-width="2.2" stroke-linecap="round"/>
+      <line x1="6"  y1="20" x2="6"  y2="14" stroke="#C7C7CC" stroke-width="2.2" stroke-linecap="round"/>
     </svg>
     <span class="tab-label">記録</span>
   </div>
   <div class="tab-item" id="tab-recent" onclick="showTab('recent')">
     <svg width="23" height="23" viewBox="0 0 24 24" fill="none">
-      <circle cx="12" cy="12" r="9" stroke="#C7C7CC" stroke-width="1.75"/>
-      <polyline points="12 7 12 12 15.5 14" stroke="#C7C7CC" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="12" cy="12" r="9" stroke="#C7C7CC" stroke-width="2.2"/>
+      <polyline points="12 7 12 12 15.5 14" stroke="#C7C7CC" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
     </svg>
-    <span class="tab-label">解析種目</span>
+    <span class="tab-label">種目履歴</span>
   </div>
 </nav>
 
@@ -2170,7 +2183,7 @@ function renderHistory(filterExercise) {
   const bestEntry = target.reduce((a, b) => a.score > b.score ? a : b);
   const avg       = Math.round(target.reduce((s, h) => s + h.score, 0) / target.length);
   const diff      = target.length >= 2 ? target[0].score - target[1].score : null;
-  const diffStyle = diff === null ? 'color:var(--text-1)' : diff >= 0 ? 'color:var(--success)' : 'color:var(--danger)';
+  const diffStyle = diff === null ? 'color:var(--text-1)' : diff >= 0 ? 'color:var(--success)' : 'color:var(--text-2)';
   const diffText  = diff === null ? '—' : (diff >= 0 ? '+' : '') + diff;
 
   const bestDate  = new Date(bestEntry.date);
@@ -2258,7 +2271,24 @@ function updateScreen3(data, isHistoricalView) {
 
   document.getElementById('s3scoreNum').textContent = score;
   document.getElementById('s3ring').style.strokeDashoffset = offset;
-  document.getElementById('s3grade').textContent = data.grade || '良好';
+  const gradeText = data.grade || '良好';
+  document.getElementById('s3grade').textContent = gradeText;
+  // ── グレードチップをグレードに応じて色・アイコン変更 ──
+  const gradeChip = document.getElementById('s3gradeChip');
+  const gradeIcon = document.getElementById('s3gradeIcon');
+  if (gradeText.includes('要改善') || gradeText.includes('要修正')) {
+    gradeChip.style.background = 'rgba(255,59,48,0.15)';
+    gradeChip.style.color = 'var(--danger)';
+    gradeIcon.innerHTML = '<path d="M2 2l8 8M10 2L2 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>';
+  } else if (gradeText.includes('注意') || gradeText.includes('普通')) {
+    gradeChip.style.background = 'rgba(255,149,0,0.15)';
+    gradeChip.style.color = 'var(--warning)';
+    gradeIcon.innerHTML = '<path d="M6 1.5L11 10.5H1z" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 5v2.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>';
+  } else {
+    gradeChip.style.background = 'rgba(52,199,89,0.18)';
+    gradeChip.style.color = '#4CD964';
+    gradeIcon.innerHTML = '<path d="M2 6l3 3 5-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>';
+  }
   document.getElementById('s3summary').innerHTML =
     (data.summary || 'フォームを確認してください').replace(/\n/g, '<br>');
   document.getElementById('s3improvements').textContent =
@@ -2324,15 +2354,33 @@ function updateScreen3(data, isHistoricalView) {
       { label: '右股関節',   val: a.rightHip,           memo: 'ヒンジ動作の確認' },
       { label: '左膝角度',   val: a.leftKnee,           memo: '膝の軸ぶれ確認' },
     ].filter(i => i.val !== undefined);
-    poseGrid.innerHTML = items.map(i => `
-      <div class="pose-angle-item">
+    function evalAngle(label, val) {
+      if (val === undefined) return '';
+      if (label.includes('肘')) return (val >= 55 && val <= 160) ? 'good' : 'warn';
+      if (label.includes('肩')) return (val >= 25 && val <= 170) ? 'good' : 'warn';
+      if (label.includes('膝')) return (val >= 55 && val <= 175) ? 'good' : 'warn';
+      if (label.includes('股')) return (val >= 15 && val <= 165) ? 'good' : 'warn';
+      if (label.includes('体幹')) return (val >= 5 && val <= 85) ? 'good' : 'warn';
+      return '';
+    }
+    poseGrid.innerHTML = items.map(i => {
+      const ev = evalAngle(i.label, i.val);
+      const badge = ev === 'good'
+        ? `<span class="pose-badge" style="background:rgba(52,199,89,0.12);border-color:rgba(52,199,89,0.3);color:var(--success);">良好</span>`
+        : ev === 'warn'
+        ? `<span class="pose-badge" style="background:var(--warning-bg);border-color:rgba(255,149,0,0.3);color:var(--warning);">要確認</span>`
+        : '';
+      return `
+      <div class="pose-angle-item ${ev}">
         <div class="pose-angle-label">${i.label}</div>
         <div class="pose-angle-row">
           <span class="pose-angle-val">${i.val}</span>
           <span class="pose-angle-unit">°</span>
+          ${badge}
         </div>
         <div class="pose-angle-ideal">${i.memo}</div>
-      </div>`).join('');
+      </div>`;
+    }).join('');
   } else {
     poseCard.style.display = 'none';
   }
