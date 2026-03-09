@@ -1009,7 +1009,7 @@ body {
 
     <!-- Simli リアルタイムアバター -->
     <div class="simli-video-wrap" id="simliVideoWrap">
-      <video id="simliVideo" autoplay playsinline></video>
+      <video id="simliVideo" autoplay playsinline muted></video>
       <audio id="simliAudio" autoplay></audio>
       <div id="simliStatus">接続中...</div>
       <div class="simli-badge" id="simliBadge" style="display:none;">▶ 話し中</div>
@@ -2821,6 +2821,9 @@ function roundRect(ctx, x, y, w, h, r) {
           setStatus('');  /* 接続完了でステータス消去 */
           var el = document.getElementById('simliStatus');
           if (el) el.style.display = 'none';
+          /* muted + play() で autoplay ブロックを確実に回避 */
+          var v = document.getElementById('simliVideo');
+          if (v) { v.muted = true; v.play().catch(function(){}); }
           console.log('[Simli v13] ✓ WebRTC接続完了！アバター表示開始');
         });
         simliClient.on('disconnected', function() {
