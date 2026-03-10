@@ -2714,7 +2714,8 @@ function roundRect(ctx, x, y, w, h, r) {
   var EL_VOICE = 'g9kpivHUMvxu1YfIfhxO';
   var SIM_KEY  = '7g3q2d02s4hm72ulqns3u';
   var SIM_FACE = '9a6c68be-a746-4751-842d-106b5c281021';
-  var EL_MODEL = 'eleven_v3';   /* MP3・PCM 両方 v3 */
+  var EL_MODEL     = 'eleven_v3';         /* MP3 再生用 */
+  var EL_PCM_MODEL = 'eleven_turbo_v2_5'; /* PCM ストリーミング用（リアルタイム対応） */
 
   var simliClient  = null;
   var simliReady   = false;
@@ -2839,9 +2840,12 @@ function roundRect(ctx, x, y, w, h, r) {
         simliClient.on('error', function(e) {
           simliReady   = false;
           simliIniting = false;
-          console.warn('[Simli v3] error:', e);
+          var msg = (typeof e === 'string') ? e : (e && (e.message || JSON.stringify(e)));
+          console.warn('[Simli v3] error:', msg);
+          /* RATE LIMIT の場合は長めに待機（前セッションが完全に閉じるまで） */
+          var delay = (msg && msg.indexOf('RATE LIMIT') !== -1) ? 20000 : 3000;
           setStatus('エラー 再試行中...');
-          scheduleRetry(3000);
+          scheduleRetry(delay);
         });
 
         simliClient.start().catch(function(e) {
@@ -2895,6 +2899,12 @@ function roundRect(ctx, x, y, w, h, r) {
   /* ── Simli PCM ストリーミング（接続時のみ） ── */
   function streamPCMToSimli(text) {
     if (!simliReady || !simliClient) return Promise.resolve();
+    /* WebSocket の状態を事前確認 — CLOSED(3) なら送信スキップ */
+    var ws = simliClient._ws || simliClient.ws || simliClient.wsConnection;
+    if (ws && ws.readyState !== WebSocket.OPEN) {
+      console.warn('[Simli PCM] WebSocket not open (readyState=' + ws.readyState + ')');
+      return Promise.resolve();
+    }
     return fetch(
       'https://api.elevenlabs.io/v1/text-to-speech/' + EL_VOICE +
       '/stream?output_format=pcm_16000',
@@ -2903,23 +2913,35 @@ function roundRect(ctx, x, y, w, h, r) {
         headers: { 'xi-api-key': EL_KEY, 'Content-Type': 'application/json' },
         body:    JSON.stringify({
           text:           text,
-          model_id:       EL_MODEL,
+          model_id:       EL_PCM_MODEL,   /* eleven_turbo_v2_5 でリアルタイムPCM */
           language_code:  'ja',
           voice_settings: { stability: 0.45, similarity_boost: 0.92 }
         })
       }
     ).then(function(r) {
-      if (!r.ok) throw new Error('EL PCM ' + r.status);
+      if (!r.ok) throw new Error('EL PCM HTTP ' + r.status);
       var reader = r.body.getReader();
       function pump() {
         return reader.read().then(function(chunk) {
-          if (chunk.done) return;
-          if (simliClient && simliReady) simliClient.sendAudioData(chunk.value);
+          if (chunk.done) { console.log('[Simli PCM] ストリーム完了'); return; }
+          try {
+            if (simliClient && simliReady) {
+              simliClient.sendAudioData(chunk.value);
+            }
+          } catch(sendErr) {
+            /* sendAudioData が文字列例外を投げる場合をキャッチ */
+            var errMsg = (typeof sendErr === 'string') ? sendErr : (sendErr.message || sendErr);
+            console.warn('[Simli PCM] sendAudioData 失敗:', errMsg);
+            return; /* ポンプ停止 */
+          }
           return pump();
         });
       }
       return pump();
-    }).catch(function(e) { console.warn('[Simli PCM]', e.message); });
+    }).catch(function(e) {
+      var msg = (typeof e === 'string') ? e : (e.message || JSON.stringify(e));
+      console.warn('[Simli PCM] エラー:', msg);
+    });
   }
 
   /* ── ボタンクリック時のメイン処理 ── */
